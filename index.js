@@ -11,26 +11,26 @@ class ImageCompression {
     this.callBack = null;
     this.blob = null;
     this.img = null;
-    this.orientation = EXIF.getTag(file, "Orientation") || 1;
+    this.orientation = null;
     this.compressCount = 0;
     this.file = null;
   }
   compression(file, callback) {
+    this.orientation = EXIF.getTag(file, "Orientation") || 1;
     this.file = file;
     this.callBack = callback;
     // 图片压缩出错函数
-
     if (!window.FileReader) {
       console.error("浏览器不支持 window.FileReader 方法哦");
-      callBack(file);
+      this.callBack(file);
     } else {
       try {
         let reader = new FileReader();
         reader.readAsDataURL(file);
-        reader.onload = function () {
+        reader.onload = () => {
           this.img = new Image();
           this.img.src = reader.result;
-          this.img.onload = function () {
+          this.img.onload = () => {
             try {
               this.renderCanvas();
             } catch (error) {
@@ -50,7 +50,7 @@ class ImageCompression {
   renderCanvas() {
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
-    let { width, LIMIT_SIZE } = this.opt;
+    let { width, LIMIT_SIZE, isBase64 } = this.opt;
     const canvasWidth = width;
     let { width: imgWidth, height: imgHeight } = this.img;
     const canvasHeight = canvasWidth / (imgWidth / imgHeight);
@@ -88,7 +88,7 @@ class ImageCompression {
         break;
     }
 
-    context.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+    context.drawImage(this.img, 0, 0, canvasWidth, canvasHeight);
     context.setTransform(1, 0, 0, 1, 0, 0);
     canvas.toBlob(
       (blob) => {
@@ -111,15 +111,16 @@ class ImageCompression {
 
   // 转为base64
   conversion(blob) {
+    console.log(this);
     let reader = new FileReader();
     reader.onload = (e) => {
-      this.callback(e.target.result);
+      this.callBack(e.target.result);
     };
     reader.readAsDataURL(blob);
   }
   //   错误函数
   errorFn(e) {
     console.error("图片压缩出问题了", e);
-    callBack(file);
+    callBack(this.file);
   }
 }

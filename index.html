@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>图片压缩转换base64</title>
+    <style>
+      .ui_button {
+        background: #0066cc;
+        color: #fff;
+        padding: 10px 20px;
+        margin: 10px;
+        display: block;
+        width: 100px;
+        text-align: center;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+      img {
+        height: 100px;
+        width: 100px;
+	display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <label class="ui_button" for="xFile" label>上传文件</label>
+    <form>
+      <input
+        type="file"
+        accept="image/*"
+        onchange="fileChange(this)"
+        style="position: absolute; clip: rect(0 0 0 0)"
+      />
+    </form>
+    <img src="" alt="" id="showImg" />
+  </body>
+  <script src="./exif-js.js"></script>
+  <script>
+    let btn = document.getElementsByClassName("ui_button")[0];
+    let fileInput = document.getElementsByTagName("input")[0];
+    btn.onclick = function () {
+      fileInput.click();
+    };
+    function fileChange(e) {
+      let file = e.files[0];
+      //  判断图片大小是否需要压缩 (不能大于4M)
+      if (file.size > 4 * 1024 * 1024) {
+        console.log("图片过大不能上传哦");
+      } else {
+        imageCompression(file, getBase64);
+      }
+    }
+
+    function imageCompression(
+      file,
+      callBack = () => {},
+      params = {
+        width: 1000,
+        LIMIT_SIZE: 0.5 * 1024 * 2014,
+        isBase64: true,
+      }
+    ) {
+      let compressCount = 0;
+      const { width, LIMIT_SIZE, isBase64 } = params;
+      const orientation = EXIF.getTag(file, "Orientation") || 1;
+      // 图片压缩出错函数
+      const errorFn = (e) => {
+        console.error("图片压缩出问题了", e);
+        callBack(file);
+      };
+      if (!window.FileReader) {
+        console.error("浏览器不支持 window.FileReader 方法哦");
+        callBack(file);
+      } else {
+        try {
+          let reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = function () {
+            let img = new Image();
+            img.src = reader.result;
+            img.onload = function () {
+              try {
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                const canvasWidth = width;
+                const canvasHeight = canvasWidth / (img.width / img.height);
+                canvas.width = canvasWidth;
+                canvas.height = canvasHeight;
+                let angle = 0;
+                switch (orientation) {
+                  case 1:
+                    break;
+                  case 6:
+                    // 逆时针90°，需要顺时针旋转90°
+                    angle = (90 * Math.PI) / 180;
+                    canvas.width = canvasHeight;
+                    canvas.height = canvasWidth;
+                    context.rotate(angle);
+                    context.translate(0, -canvas.width);
+                    break;
+                  case 8:
+                    // 顺时针90°，需要顺时针旋转270°
+                    angle = (270 * Math.PI) / 180;
+                    canvas.width = canvasHeight;
+                    canvas.height = canvasWidth;
+                    context.rotate(angle);
+                    context.translate(-canvas.height, 0);
+                    break;
+                  case 3:
+                    // 顺时针180°，需要顺时针旋转180°
+                    angle = (180 * Math.PI) / 180;
+                    canvas.width = canvasWidth;
+                    canvas.height = canvasHeight;
+                    context.rotate(angle);
+                    context.translate(-canvas.width, -canvas.height);
+                    break;
+                  default:
+                    break;
+                }
+
+                context.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+                context.setTransform(1, 0, 0, 1, 0, 0);
+                canvas.toBlob(
+                  (blob) => {
+                    if (blob.size > LIMIT_SIZE) {
+                      compressCount += 1;
+                      imageCompression(blob, callBack);
+                    } else {
+                      compressCount = 0;
+                      if (isBase64) {
+                        conversion(blob, callBack);
+                      } else {
+                        callBack(blob);
+                      }
+                    }
+                  },
+                  "image/jpeg",
+                  0.9 - compressCount * 0.1
+                );
+              } catch (error) {
+                errorFn(error);
+              }
+            };
+          };
+          reader.onerror = (error) => {
+            errorFn(error);
+          };
+        } catch (error) {
+          errorFn(error);
+        }
+        // 转为base64
+        function conversion(blob, callback) {
+          let reader = new FileReader();
+          reader.onload = function (e) {
+            callback(e.target.result);
+          };
+          reader.readAsDataURL(blob);
+        }
+      }
+    }
+    // 获取base64
+    function getBase64(base64) {
+      let showImg = document.getElementById("showImg");
+      showImg.src = base64;
+      showImg.style.display = 'block';
+      console.log(base64);
+    }
+  </script>
+</html>
